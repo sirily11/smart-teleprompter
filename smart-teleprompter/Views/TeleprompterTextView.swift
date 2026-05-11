@@ -53,10 +53,14 @@ struct TeleprompterTextView: View {
                 .scrollIndicators(.hidden)
                 .onChange(of: model.sync.currentTokenIndex) { _, _ in
                     let line = model.sync.currentLineIndex
-                    let lineChanged = line != lastScrolledLine
-                    lastScrolledLine = line
-                    if lineChanged { Log.ui.debug("scroll to line \(line) of \(model.lines.count)") }
-                    withAnimation(.easeOut(duration: lineChanged ? 0.4 : 0.25)) {
+                    if line != lastScrolledLine {
+                        lastScrolledLine = line
+                        Log.ui.debug("scroll to line \(line) of \(model.lines.count)")
+                    }
+                    // A gentle spring (rather than a fresh ease curve each word)
+                    // retargets without restarting, so successive word advances
+                    // blend into one continuous glide instead of stutter-steps.
+                    withAnimation(.smooth(duration: 0.7)) {
                         proxy.scrollTo(line, anchor: UnitPoint(x: 0.5, y: anchorY(forLine: line)))
                     }
                 }
@@ -75,17 +79,6 @@ struct TeleprompterTextView: View {
         // Mirror for beam-splitter rigs: flip the rendered text, not the controls.
         .scaleEffect(x: model.mirrorHorizontal ? -1 : 1,
                      y: model.mirrorVertical ? -1 : 1)
-        .overlay(alignment: .top) { readingGuide }
-    }
-
-    private var readingGuide: some View {
-        GeometryReader { geo in
-            Rectangle()
-                .fill(.white.opacity(0.12))
-                .frame(height: 2)
-                .offset(y: geo.size.height * readingAnchorY)
-        }
-        .allowsHitTesting(false)
     }
 }
 
