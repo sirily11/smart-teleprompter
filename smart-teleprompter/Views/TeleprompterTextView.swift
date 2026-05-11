@@ -42,6 +42,11 @@ struct TeleprompterTextView: View {
                                                  matchedTokenIndex: model.sync.matchedTokenIndex,
                                                  highlightCurrent: model.isRunning,
                                                  fontSize: model.fontSize)
+                                .contextMenu {
+                                    Button("Start from here", systemImage: "arrow.turn.down.right") {
+                                        model.startReading(fromLine: index)
+                                    }
+                                }
                         }
                         Color.clear.frame(height: geo.size.height * (1 - readingAnchorY))
                     }

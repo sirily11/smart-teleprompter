@@ -69,6 +69,20 @@ final class SpeechSyncEngine {
         Log.sync.info("restored sync position to token \(tokenIndex) (line \(self.currentLineIndex))")
     }
 
+    /// Set the position so the next word to be matched is the first token at or
+    /// after `line` — i.e. "start reading again from this paragraph". If the
+    /// line (and everything after it) has no tokens, parks at the end.
+    func start(fromLine line: Int) {
+        if let first = tokens.first(where: { $0.lineIndex >= line }) {
+            matchedTokenIndex = first.index - 1
+        } else {
+            matchedTokenIndex = tokens.count - 1
+        }
+        consumedWordsThisUtterance = 0
+        lastMatchDate = nil
+        Log.sync.debug("start from line \(line) -> matchedTokenIndex=\(self.matchedTokenIndex)")
+    }
+
     /// Force the position to a specific rendered line (used when the user
     /// manually drags the prompter).
     func snap(toLine line: Int) {

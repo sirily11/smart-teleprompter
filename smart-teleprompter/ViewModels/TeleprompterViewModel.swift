@@ -109,6 +109,14 @@ final class TeleprompterViewModel {
         script.lastTokenIndex = -1
     }
 
+    /// Jump the reading position to the start of the given rendered line, so the
+    /// next thing the prompter follows is that paragraph.
+    func startReading(fromLine line: Int) {
+        Log.ui.debug("start reading from line \(line)")
+        sync.start(fromLine: line)
+        script.lastTokenIndex = sync.matchedTokenIndex
+    }
+
     // MARK: Speech sync lifecycle
 
     func toggleSync() {
