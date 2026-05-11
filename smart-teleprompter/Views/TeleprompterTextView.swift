@@ -2,40 +2,39 @@
 //  TeleprompterTextView.swift
 //  smart-teleprompter
 //
-//  Renders the script line-by-line, dims already-spoken text, highlights the
-//  word currently being spoken, and keeps the active line parked on the
-//  "reading line" (~40% down the screen) as speech progresses.
+//  Renders the script word-by-word, dims already-spoken text, highlights the
+//  word currently being spoken, and keeps that word parked on the "reading
+//  line" (~40% down the screen) as speech progresses.
 //
 
 import SwiftUI
 import os
 
+/// Scroll-anchor identity for the run that renders a given script token. A
+/// `\n`-delimited paragraph can wrap over several screens, so we scroll to the
+/// word itself rather than to the paragraph — otherwise a long paragraph parks
+/// its *top* near the reading line and pushes the word being read off-screen.
+private struct TokenAnchor: Hashable { let token: Int }
+
 struct TeleprompterTextView: View {
     @Bindable var model: TeleprompterViewModel
 
-    /// 0…1 — where the start of the active line sits when you begin reading it.
+    /// 0…1 — where the word being spoken sits in the viewport.
     private let readingAnchorY: CGFloat = 0.4
-    @State private var lastScrolledLine = 0
 
-    /// As you read through a (possibly multi-line-wrapping) paragraph, slide its
-    /// top upward so the word you're on stays near the reading guide instead of
-    /// drifting toward the bottom of the screen.
-    private func anchorY(forLine line: Int) -> CGFloat {
-        guard model.tokensByLine.indices.contains(line) else { return readingAnchorY }
-        let lineTokens = model.tokensByLine[line]
-        guard let first = lineTokens.first?.index, let last = lineTokens.last?.index, last > first else {
-            return readingAnchorY
-        }
-        let cur = min(max(model.sync.currentTokenIndex, first), last)
-        let progress = CGFloat(cur - first) / CGFloat(last - first)
-        return max(0.06, readingAnchorY - progress * (readingAnchorY - 0.06))
+    private func scrollToCurrentWord(_ proxy: ScrollViewProxy) {
+        proxy.scrollTo(TokenAnchor(token: model.sync.currentTokenIndex),
+                       anchor: UnitPoint(x: 0.5, y: readingAnchorY))
     }
 
     var body: some View {
         GeometryReader { geo in
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
-                    LazyVStack(alignment: .leading, spacing: model.fontSize * 0.45) {
+                    // Eager VStack (not Lazy): ScrollViewReader can only jump to
+                    // a word run that's been realized, and teleprompter scripts
+                    // are short enough that laying them all out up front is fine.
+                    VStack(alignment: .leading, spacing: model.fontSize * 0.45) {
                         Color.clear.frame(height: geo.size.height * readingAnchorY)
                         ForEach(model.lines.indices, id: \.self) { index in
                             TeleprompterLineView(runs: model.lineRuns[index],
@@ -43,7 +42,6 @@ struct TeleprompterTextView: View {
                                                  matchedTokenIndex: model.sync.matchedTokenIndex,
                                                  highlightCurrent: model.isRunning,
                                                  fontSize: model.fontSize)
-                                .id(index)
                         }
                         Color.clear.frame(height: geo.size.height * (1 - readingAnchorY))
                     }
@@ -51,28 +49,15 @@ struct TeleprompterTextView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .scrollIndicators(.hidden)
-                .onChange(of: model.sync.currentTokenIndex) { _, _ in
-                    let line = model.sync.currentLineIndex
-                    if line != lastScrolledLine {
-                        lastScrolledLine = line
-                        Log.ui.debug("scroll to line \(line) of \(model.lines.count)")
-                    }
+                .onChange(of: model.sync.currentTokenIndex) { _, new in
+                    Log.ui.debug("scroll to token \(new) (line \(model.sync.currentLineIndex) of \(model.lines.count))")
                     // A gentle spring (rather than a fresh ease curve each word)
-                    // retargets without restarting, so successive word advances
-                    // blend into one continuous glide instead of stutter-steps.
-                    withAnimation(.smooth(duration: 0.7)) {
-                        proxy.scrollTo(line, anchor: UnitPoint(x: 0.5, y: anchorY(forLine: line)))
-                    }
+                    // retargets without restarting, so a run of word advances
+                    // blends into one continuous glide instead of stutter-steps.
+                    withAnimation(.smooth(duration: 0.6)) { scrollToCurrentWord(proxy) }
                 }
-                .onChange(of: model.fontSize) { _, _ in
-                    let line = model.sync.currentLineIndex
-                    proxy.scrollTo(line, anchor: UnitPoint(x: 0.5, y: anchorY(forLine: line)))
-                }
-                .onAppear {
-                    let line = model.sync.currentLineIndex
-                    lastScrolledLine = line
-                    proxy.scrollTo(line, anchor: UnitPoint(x: 0.5, y: anchorY(forLine: line)))
-                }
+                .onChange(of: model.fontSize) { _, _ in scrollToCurrentWord(proxy) }
+                .onAppear { scrollToCurrentWord(proxy) }
             }
         }
         .background(.black)
@@ -111,10 +96,20 @@ private struct TeleprompterLineView: View {
                 Text(run.text)
                     .foregroundStyle(color(for: run))
                     .animation(.easeOut(duration: 0.3), value: color(for: run))
+                    .modifier(TokenAnchorID(token: run.tokenIndex))
             }
         }
         .font(.system(size: fontSize, weight: .semibold, design: .rounded))
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Tags a word run with its `TokenAnchor` so `ScrollViewProxy` can scroll to it;
+/// inter-word runs (whitespace, bare punctuation) carry no token, hence no id.
+private struct TokenAnchorID: ViewModifier {
+    let token: Int?
+    func body(content: Content) -> some View {
+        if let token { content.id(TokenAnchor(token: token)) } else { content }
     }
 }
 
