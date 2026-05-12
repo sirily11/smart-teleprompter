@@ -15,12 +15,23 @@ import os
 final class SpeechSyncEngine {
 
     // MARK: Tuning
-    /// How far ahead of the current position we search for the spoken words.
-    private let lookAheadWindow = 30
+    /// Tokens just past the current position that count as "reading straight on":
+    /// a forward match in here barely pays a distance penalty and commits cheaply.
+    private let nearWindow = 28
+    /// How far past the current position we'll still look for the spoken words —
+    /// wide enough to re-acquire a speaker who skipped a line or a whole
+    /// paragraph. Matches out here have to clear a much higher similarity bar.
+    private let lookAheadWindow = 220
     /// How many of the most-recent recognized words we try to align each update.
     private let matchTail = 8
     /// Allowed gap (skipped script tokens) inside an otherwise-good alignment.
     private let maxSkips = 2
+    /// Score docked per token of forward jump — within `nearWindow` at the first
+    /// rate, then a gentler rate beyond. This is what keeps the prompter on the
+    /// *nearest* copy of a line that occurs more than once: a far candidate has
+    /// to out-match a near one by enough to overcome the accumulated penalty.
+    private let jumpPenaltyNear = 0.06
+    private let jumpPenaltyFar = 0.03
 
     // MARK: Script
     private(set) var tokens: [ScriptToken] = []
@@ -125,24 +136,29 @@ final class SpeechSyncEngine {
         }
     }
 
-    /// Try to align `spoken` (recent recognized words) against the script just
-    /// ahead of `matchedTokenIndex`. Returns true if we advanced.
+    /// Try to align `spoken` (recent recognized words) against the script ahead
+    /// of `matchedTokenIndex`. Returns true if we advanced. Never rewinds.
     ///
     /// We consider every spoken word as a possible anchor — the speaker often
     /// prepends filler that isn't in the script ("我记得…", "uh, so…"), and a
     /// later word is the real first match — landing anywhere in the look-ahead
     /// window, then greedily extend the alignment from there (tolerating dropped
     /// script words via small forward jumps and inserted/mis-heard spoken words
-    /// via skips). Among all candidates we keep the one that confirms the most
-    /// words, preferring the alignment closest to where we already are on a tie.
-    /// Never rewinds.
+    /// via skips).
     ///
-    /// To commit we then require more matched words the further past our current
-    /// position the alignment starts: 2 keeps us reading straight on, a genuine
-    /// line-skip (the speaker jumps ahead) is picked up within a word or two,
-    /// but — crucially for CJK, where every token is a single character — a
-    /// couple of coincidental common characters can't creep the prompter forward
-    /// over a rough patch of recognition.
+    /// Each candidate scores `matched − distancePenalty(jump)`, so the prompter
+    /// follows the *nearest* place the words fit: if a line repeats, the copy
+    /// we're already next to wins unless a farther one genuinely matches more of
+    /// what was just said. That fixes the stall where the speaker jumps to the
+    /// next line/paragraph before finishing the current one — the continuation
+    /// is now found ahead and, having far more matched words than the stale
+    /// position, wins despite the distance penalty.
+    ///
+    /// To actually commit, a jump must clear a similarity bar that rises with
+    /// distance: reading straight on needs only a 2-word confirmation; skipping
+    /// a paragraph needs most of the recent tail to line up there — so a couple
+    /// of coincidental common characters (every CJK token is one character!)
+    /// can't creep the prompter forward over a rough patch of recognition.
     private func advance(usingSpokenTail spoken: [String]) -> Bool {
         guard !tokens.isEmpty, !spoken.isEmpty else { return false }
         let searchStart = matchedTokenIndex + 1
@@ -150,7 +166,13 @@ final class SpeechSyncEngine {
         let searchEnd = min(tokens.count, searchStart + lookAheadWindow)
         let gap = maxSkips + 2
 
-        var best: (end: Int, matched: Int, jump: Int)?
+        func penalty(forJump jump: Int) -> Double {
+            let near = Double(min(jump, nearWindow))
+            let far = Double(max(0, jump - nearWindow))
+            return near * jumpPenaltyNear + far * jumpPenaltyFar
+        }
+
+        var best: (end: Int, matched: Int, jump: Int, score: Double)?
 
         for si0 in spoken.indices {
             for anchor in searchStart..<searchEnd where fuzzyEqual(tokens[anchor].normalized, spoken[si0]) {
@@ -175,19 +197,34 @@ final class SpeechSyncEngine {
                     si += 1
                 }
                 let jump = anchor - searchStart
+                let score = Double(matched) - penalty(forJump: jump)
                 if best == nil
-                    || matched > best!.matched
-                    || (matched == best!.matched && jump < best!.jump) {
-                    best = (end, matched, jump)
+                    || score > best!.score
+                    || (score == best!.score && jump < best!.jump) {
+                    best = (end, matched, jump, score)
                 }
             }
         }
 
         guard let best, best.end > matchedTokenIndex else { return false }
-        let needed = best.jump <= 1 ? 2 : max(3, 2 + best.jump / 4)
-        guard best.matched >= needed else {
-            Log.sync.debug("rejecting alignment: matched \(best.matched) < needed \(needed) for jump \(best.jump) (still at token \(self.matchedTokenIndex))")
-            return false
+
+        if best.jump <= 1 {
+            // Reading straight on — a short confirmation is plenty.
+            guard best.matched >= 2 else { return false }
+        } else {
+            // A jump must be backed by a solid fraction of what we just heard,
+            // and the further the jump the larger that fraction — up to ~85%.
+            // A *small* hop, though, is usually just the last word or two of a
+            // paragraph going unrecognized before the speaker moves on, so it
+            // only needs a light confirmation — otherwise the prompter stalls a
+            // word shy of the paragraph break and you have to nudge it across.
+            let base = best.jump <= maxSkips + 1 ? 0.30 : 0.45
+            let need = min(0.85, base + Double(best.jump) * 0.012)
+            let ratio = Double(best.matched) / Double(spoken.count)
+            guard best.matched >= 3, ratio >= need else {
+                Log.sync.debug("rejecting jump: matched \(best.matched)/\(spoken.count) ratio \(ratio) < need \(need) for jump \(best.jump) (still at token \(self.matchedTokenIndex))")
+                return false
+            }
         }
         matchedTokenIndex = best.end
         lastMatchDate = Date()

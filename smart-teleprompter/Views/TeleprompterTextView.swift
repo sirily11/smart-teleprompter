@@ -34,7 +34,10 @@ struct TeleprompterTextView: View {
                     // Eager VStack (not Lazy): ScrollViewReader can only jump to
                     // a word run that's been realized, and teleprompter scripts
                     // are short enough that laying them all out up front is fine.
-                    VStack(alignment: .leading, spacing: model.fontSize * 0.45) {
+                    // Paragraphs sit close together — a hair more than the
+                    // in-paragraph line gap, just enough to read as separate
+                    // paragraphs without a yawning blank band between them.
+                    VStack(alignment: .leading, spacing: model.fontSize * 0.25) {
                         Color.clear.frame(height: geo.size.height * readingAnchorY)
                         ForEach(model.lines.indices, id: \.self) { index in
                             TeleprompterLineView(runs: model.lineRuns[index],

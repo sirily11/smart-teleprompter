@@ -27,6 +27,15 @@ struct SpeechSyncEngineTests {
         #expect(tokens.map(\.lineIndex) == tokens.map(\.lineIndex).sorted())
     }
 
+    @Test func tokenizerDropsBlankLines() {
+        let (tokens, lines) = ScriptTokenizer.tokenize("first paragraph\n\n   \nsecond paragraph\n")
+        #expect(lines == ["first paragraph", "second paragraph"])
+        #expect(tokens.first?.lineIndex == 0)
+        #expect(tokens.last?.lineIndex == 1)
+        // Line indices stay contiguous (0, 1) — no gap left by the dropped rows.
+        #expect(Set(tokens.map(\.lineIndex)) == [0, 1])
+    }
+
     @Test func advancesMonotonicallyWithGrowingPartialTranscript() {
         let engine = SpeechSyncEngine()
         engine.load(body: script)
@@ -127,6 +136,45 @@ struct SpeechSyncEngineTests {
         }
         #expect(engine.matchedTokenIndex > parked)
         #expect(engine.currentLineIndex == 1)
+    }
+
+    @Test func jumpsToNextParagraphWhenSpeakerSkipsAhead() {
+        let engine = SpeechSyncEngine()
+        let body = """
+        first i will cover the background then the design and only at the very end the results
+        now the results are what everyone came here for so let us start right there
+        """
+        engine.load(body: body)
+        // Speaker reads the opening of paragraph one, then trails off without
+        // finishing it.
+        engine.ingest(.init(text: "first i will cover the background", isFinal: true))
+        let parked = engine.matchedTokenIndex
+        #expect(parked >= 5)
+        #expect(engine.currentLineIndex == 0)
+        // …and jumps straight into paragraph two — the prompter must follow,
+        // not stall on the unfinished first paragraph.
+        engine.ingest(.init(text: "now the results are what everyone came here for", isFinal: false))
+        #expect(engine.currentLineIndex == 1)
+        #expect(engine.matchedTokenIndex > parked)
+    }
+
+    @Test func repeatedLineStaysOnTheNearestCopy() {
+        let engine = SpeechSyncEngine()
+        // The same sentence appears twice; the speaker is reading the first copy.
+        let body = """
+        the quick brown fox jumps over the lazy dog
+        here is a sentence of completely different filler words in between
+        the quick brown fox jumps over the lazy dog
+        and then the talk continues on to entirely new material
+        """
+        engine.load(body: body)
+        engine.ingest(.init(text: "the quick brown", isFinal: false))
+        #expect(engine.currentLineIndex == 0)
+        // Hearing the whole repeated sentence must not teleport us to the second
+        // copy — the distance penalty keeps us on the one we're already at.
+        engine.ingest(.init(text: "the quick brown fox jumps over the lazy dog", isFinal: false))
+        #expect(engine.currentLineIndex == 0)
+        #expect(engine.matchedTokenIndex < 9)
     }
 
     @Test func manualSnapToLine() {

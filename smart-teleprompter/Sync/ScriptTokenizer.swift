@@ -81,13 +81,16 @@ enum ScriptTokenizer {
             .filter { !$0.isEmpty }
     }
 
-    /// Tokenize a script body. Returns the tokens (for matching) and the raw
-    /// lines (for rendering, one rendered line per `\n`-separated line — empty
-    /// lines preserved so paragraph spacing survives).
+    /// Tokenize a script body. Returns the tokens (for matching) and the lines
+    /// to render — one rendered line per `\n`-separated line, with blank lines
+    /// dropped: the prompter spaces paragraphs itself, so a literal empty line
+    /// would only add a dead row that swallows screen space and that the reading
+    /// position can stall on.
     static func tokenize(_ body: String) -> (tokens: [ScriptToken], lines: [String]) {
-        let rawLines = body.components(separatedBy: "\n")
+        let lines = body.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         var tokens: [ScriptToken] = []
-        for (lineIndex, line) in rawLines.enumerated() {
+        for (lineIndex, line) in lines.enumerated() {
             for piece in segments(of: line) {
                 let normalized = normalize(piece.text)
                 guard !normalized.isEmpty else { continue }
@@ -98,7 +101,7 @@ enum ScriptTokenizer {
                                           range: piece.range))
             }
         }
-        return (tokens, rawLines)
+        return (tokens, lines)
     }
 
     /// Slice each rendered line into `LineRun`s — token pieces interleaved with
