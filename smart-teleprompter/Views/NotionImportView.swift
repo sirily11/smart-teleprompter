@@ -14,21 +14,18 @@ struct NotionImportView: View {
     @State private var status = ""
     @State private var error: String?
     @State private var operation: Task<Void, Never>?
+    private let credentials = NotionCredentialStore()
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Button(token.isEmpty ? "Connect to Notion" : "Reconnect to Notion") {
-                        connect()
+                if token.isEmpty {
+                    Section {
+                        Button("Connect to Notion") { connect() }
+                            .disabled(busy)
+                    } footer: {
+                        Text("Sign in to Notion and select the pages you want to import.")
                     }
-                    .disabled(busy)
-                    if !token.isEmpty {
-                        Label("Connected", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                } footer: {
-                    Text("Sign in to Notion and select the pages you want to import.")
                 }
                 if !token.isEmpty {
                     Section {
@@ -74,12 +71,31 @@ struct NotionImportView: View {
             .formStyle(.grouped)
             .navigationTitle("Import from Notion")
             .toolbar {
+                if !token.isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            Button("Reconnect to Notion") { connect() }
+                            Button("Disconnect Notion", role: .destructive) { disconnect() }
+                        } label: {
+                            Label("Notion connection", systemImage: "ellipsis.circle")
+                        }
+                        .disabled(busy)
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         operation?.cancel()
                         dismiss()
                     }
                 }
+            }
+        }
+        .onAppear {
+            do {
+                token = try credentials.load() ?? ""
+                if !token.isEmpty { search() }
+            } catch {
+                self.error = error.localizedDescription
             }
         }
         .onDisappear {
@@ -99,6 +115,7 @@ struct NotionImportView: View {
         run(status: "Connecting to Notion…") {
             let accessToken = try await oauth.connect()
             try Task.checkCancellation()
+            try credentials.save(accessToken)
             token = accessToken
             pages = []
             cursor = nil
@@ -110,6 +127,21 @@ struct NotionImportView: View {
             pages = result.results
             cursor = result.has_more ? result.next_cursor : nil
             hasSearched = true
+        }
+    }
+
+    private func disconnect() {
+        do {
+            try credentials.delete()
+            token = ""
+            pages = []
+            cursor = nil
+            hasSearched = false
+            query = ""
+            searchedQuery = ""
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 
@@ -155,6 +187,9 @@ struct NotionImportView: View {
                 try await action()
             } catch {
                 if !Task.isCancelled && !(error is CancellationError) {
+                    if case NotionImportError.http(401) = error {
+                        disconnect()
+                    }
                     self.error = error.localizedDescription
                 }
             }

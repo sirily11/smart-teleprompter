@@ -56,7 +56,9 @@ Requires microphone and speech-recognition permission (requested on first use of
 
 Choose **+ → Import from Notion… → Connect to Notion**, sign in, select the pages
 to share, then choose a page to import as an editable script. The access token
-remains in memory for the import session. Nested text and table cells are included;
+is saved in this device’s Keychain, so reopening the importer loads pages without
+signing in again. Use the connection menu to reconnect or disconnect and remove
+the saved token. Nested text and table cells are included;
 media, child pages, and databases are omitted. Imports do not automatically sync.
 
 The app uses `https://teleprompter.rxlab.app/api/notion` for OAuth and the same
