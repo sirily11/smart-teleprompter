@@ -46,7 +46,7 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "DF06C8B62FB1D9D9005991E1"
+               BlueprintIdentifier = "E1076F949F43687BFC787079"
                BuildableName = "smart-teleprompterUITests.xctest"
                BlueprintName = "smart-teleprompterUITests"
                ReferencedContainer = "container:smart-teleprompter.xcodeproj">

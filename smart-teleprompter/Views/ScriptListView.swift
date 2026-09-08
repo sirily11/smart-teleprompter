@@ -13,15 +13,29 @@ import UIKit
 
 struct ScriptListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Script.updatedAt, order: .reverse) private var scripts: [Script]
+    @Query(sort: \Script.createdAt, order: .reverse) private var storedScripts: [Script]
+    private var scripts: [Script] {
+        storedScripts.sorted {
+            switch ($0.sortPosition, $1.sortPosition) {
+            case let (left?, right?) where left != right: return left < right
+            case (nil, _?): return true // Newly created/imported scripts go first.
+            case (_?, nil): return false
+            default: return $0.createdAt > $1.createdAt
+            }
+        }
+    }
     @State private var selectedScript: Script?
     @State private var phonePath: [Script] = []
     @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
     @State private var importingFile = false
+    @State private var showingSettings = false
     // Enable after the Notion OAuth service is configured.
     private let notionImportEnabled = false
     @State private var importingNotion = false
     @State private var importError: String?
+    @State private var pendingDeletionIDs: Set<PersistentIdentifier> = []
+    @State private var deletionTitle = ""
+    @State private var confirmingDeletion = false
 
     /// `.txt` and `.md` (plus the `.markdown` long form), falling back to plain
     /// text if a UTI lookup ever fails.
@@ -66,6 +80,7 @@ struct ScriptListView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingSettings) { SettingsView() }
         .fileImporter(isPresented: $importingFile,
                       allowedContentTypes: importableTypes,
                       allowsMultipleSelection: false) { result in
@@ -91,6 +106,12 @@ struct ScriptListView: View {
             Button("OK", role: .cancel) { importError = nil }
         } message: {
             Text(importError ?? "")
+        }
+        .confirmationDialog(deletionTitle, isPresented: $confirmingDeletion, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { confirmDeletion() }
+            Button("Cancel", role: .cancel) { pendingDeletionIDs = [] }
+        } message: {
+            Text("This can’t be undone.")
         }
         .onChange(of: scripts.map(\.persistentModelID)) { _, ids in
             // A script may also be deleted from another window.
@@ -121,6 +142,17 @@ struct ScriptListView: View {
         }
         .navigationTitle("Scripts")
         .toolbar {
+            #if os(iOS)
+            ToolbarItem(placement: .automatic) {
+                EditButton()
+                    .disabled(scripts.isEmpty)
+            }
+            #endif
+            ToolbarItem(placement: .automatic) {
+                Button { showingSettings = true } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button {
@@ -156,13 +188,27 @@ struct ScriptListView: View {
                     Text(script.displayTitle)
                         .font(.headline)
                         .lineLimit(1)
-                    Text(script.updatedAt, format: .relative(presentation: .named))
+                    Text(script.createdAt, format: .relative(presentation: .named))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .onDelete(perform: deleteScripts)
+        .onDelete(perform: requestDeletion)
+        .onMove(perform: moveScripts)
+    }
+
+    private func moveScripts(from offsets: IndexSet, to destination: Int) {
+        var reordered = scripts
+        reordered.move(fromOffsets: offsets, toOffset: destination)
+        for (index, script) in reordered.enumerated() {
+            script.sortPosition = Double(index)
+        }
+        do {
+            try modelContext.save()
+        } catch {
+            Log.ui.error("Could not save script order: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func openScript(_ script: Script) {
@@ -207,10 +253,22 @@ struct ScriptListView: View {
         throw CocoaError(.fileReadInapplicableStringEncoding)
     }
 
-    private func deleteScripts(_ offsets: IndexSet) {
+    private func requestDeletion(_ offsets: IndexSet) {
+        let targets = offsets.map { scripts[$0] }
+        guard !targets.isEmpty else { return }
+        // Capture identities now: another window can reorder the library while the dialog is open.
+        pendingDeletionIDs = Set(targets.map(\.persistentModelID))
+        deletionTitle = targets.count == 1
+            ? "Delete “\(targets[0].displayTitle)”?"
+            : "Delete \(targets.count) Scripts?"
+        confirmingDeletion = true
+    }
+
+    private func confirmDeletion() {
+        let targets = scripts.filter { pendingDeletionIDs.contains($0.persistentModelID) }
+        pendingDeletionIDs = []
         withAnimation {
-            for index in offsets {
-                let script = scripts[index]
+            for script in targets {
                 if selectedScript == script {
                     selectedScript = nil
                     preferredCompactColumn = .sidebar

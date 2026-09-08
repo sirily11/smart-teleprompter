@@ -97,3 +97,19 @@ needs to be selected. It must implement this contract:
 
 See Notion's [OAuth documentation](https://developers.notion.com/guides/get-started/authorization).
 Page search and block retrieval use API version `2025-09-03`.
+
+## Script ordering
+
+Scripts start in creation order, newest first. Editing a script does not move it.
+On iPhone and iPad, choose **Edit** in the script list and drag the reorder handles;
+on Mac, drag rows in the sidebar. Custom order is saved across launches. New and
+imported scripts appear first while preserving the order of existing scripts.
+
+## UI regression tests
+
+The shared `smart-teleprompter` scheme includes `smart-teleprompterUITests` for iOS.
+Run it on an iPhone or iPad simulator through Xcode's Test action. The tests cover
+creation order after editing, drag reordering and persistence after relaunch,
+new-script placement, and rendered white-text contrast in all four mirror states.
+Mirror screenshots are attached to the test results. Each test uses its own
+isolated store and does not modify the user's scripts.

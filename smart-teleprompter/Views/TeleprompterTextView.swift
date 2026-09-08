@@ -57,6 +57,9 @@ struct TeleprompterTextView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .scrollIndicators(.hidden)
+                // System edge shading spreads across the script when the scroll
+                // view is vertically mirrored. Keep the reading surface crisp.
+                .scrollEdgeEffectHidden()
                 .onChange(of: model.sync.currentTokenIndex) { _, new in
                     Log.ui.debug("scroll to token \(new) (line \(model.sync.currentLineIndex) of \(model.lines.count))")
                     // A gentle spring (rather than a fresh ease curve each word)

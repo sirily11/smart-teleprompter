@@ -1,0 +1,3 @@
+import Link from 'next/link';
+import { Contact } from '../lib/site';
+export default function Home() { return <><p className="eyebrow">SMART TELEPROMPTER / RXLAB</p><h1>Your words.<br/><em>Your pace.</em></h1><p className="lead">A little clarity behind every confident delivery. Find out how Smart Teleprompter handles your information and the terms that apply when you use it.</p><div className="cards"><Link href="/privacy"><h2>Privacy Policy ↗</h2><p>Your scripts, microphone, and speech recognition.</p></Link><Link href="/tos"><h2>Terms of Service ↗</h2><p>The essentials of using Smart Teleprompter.</p></Link></div><section><h2>Here to help</h2><Contact/></section></>; }

@@ -11,6 +11,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		B55E237CAFF3ADEDA6DABF6A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DF06C8962FB1D9D8005991E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DF06C89D2FB1D9D8005991E1;
+			remoteInfo = "smart-teleprompter";
+		};
 		DF06C8AE2FB1D9D9005991E1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = DF06C8962FB1D9D8005991E1 /* Project object */;
@@ -21,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		17BB3BCD0B515BE949CC7B95 /* smart-teleprompterUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "smart-teleprompterUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF06C89E2FB1D9D8005991E1 /* smart-teleprompter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "smart-teleprompter.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF06C8AD2FB1D9D9005991E1 /* smart-teleprompterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "smart-teleprompterTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		DFB1181A304FE16B00ACED08 /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
@@ -29,22 +37,35 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		DF06C8A02FB1D9D8005991E1 /* smart-teleprompter */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "smart-teleprompter";
 			sourceTree = "<group>";
 		};
 		DF06C8B02FB1D9D9005991E1 /* smart-teleprompterTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "smart-teleprompterTests";
 			sourceTree = "<group>";
 		};
 		DF06C8BA2FB1D9D9005991E1 /* smart-teleprompterUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "smart-teleprompterUITests";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		D8F5EE7056DE42AF2395B7E9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DF06C89B2FB1D9D8005991E1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -78,6 +99,7 @@
 			children = (
 				DF06C89E2FB1D9D8005991E1 /* smart-teleprompter.app */,
 				DF06C8AD2FB1D9D9005991E1 /* smart-teleprompterTests.xctest */,
+				17BB3BCD0B515BE949CC7B95 /* smart-teleprompterUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -101,8 +123,6 @@
 				DF06C8A02FB1D9D8005991E1 /* smart-teleprompter */,
 			);
 			name = "smart-teleprompter";
-			packageProductDependencies = (
-			);
 			productName = "smart-teleprompter";
 			productReference = DF06C89E2FB1D9D8005991E1 /* smart-teleprompter.app */;
 			productType = "com.apple.product-type.application";
@@ -124,11 +144,30 @@
 				DF06C8B02FB1D9D9005991E1 /* smart-teleprompterTests */,
 			);
 			name = "smart-teleprompterTests";
-			packageProductDependencies = (
-			);
 			productName = "smart-teleprompterTests";
 			productReference = DF06C8AD2FB1D9D9005991E1 /* smart-teleprompterTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		E1076F949F43687BFC787079 /* smart-teleprompterUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2D61FC7F3D5BA55CC005E6C2 /* Build configuration list for PBXNativeTarget "smart-teleprompterUITests" */;
+			buildPhases = (
+				D010F939CEC05C04E3766D5E /* Sources */,
+				D8F5EE7056DE42AF2395B7E9 /* Frameworks */,
+				69CAA92B3688A37E4AB9FAF3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8E6BBAF0B85CFE76245D45B9 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DF06C8BA2FB1D9D9005991E1 /* smart-teleprompterUITests */,
+			);
+			name = "smart-teleprompterUITests";
+			productName = "smart-teleprompterUITests";
+			productReference = 17BB3BCD0B515BE949CC7B95 /* smart-teleprompterUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -165,11 +204,19 @@
 			targets = (
 				DF06C89D2FB1D9D8005991E1 /* smart-teleprompter */,
 				DF06C8AC2FB1D9D9005991E1 /* smart-teleprompterTests */,
+				E1076F949F43687BFC787079 /* smart-teleprompterUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		69CAA92B3688A37E4AB9FAF3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DF06C89C2FB1D9D8005991E1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -188,6 +235,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		D010F939CEC05C04E3766D5E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DF06C89A2FB1D9D8005991E1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -205,6 +259,12 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		8E6BBAF0B85CFE76245D45B9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = "smart-teleprompter";
+			target = DF06C89D2FB1D9D8005991E1 /* smart-teleprompter */;
+			targetProxy = B55E237CAFF3ADEDA6DABF6A /* PBXContainerItemProxy */;
+		};
 		DF06C8AF2FB1D9D9005991E1 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = DF06C89D2FB1D9D8005991E1 /* smart-teleprompter */;
@@ -213,6 +273,39 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		19C72E36BB78CB8D5292399D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				PRODUCT_BUNDLE_IDENTIFIER = "rxlab.smart-teleprompterUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "smart-teleprompter";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		1CDD7780880F177B59356A09 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				PRODUCT_BUNDLE_IDENTIFIER = "rxlab.smart-teleprompterUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "smart-teleprompter";
+			};
+			name = Debug;
+		};
 		DF06C8BF2FB1D9D9005991E1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -480,6 +573,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		2D61FC7F3D5BA55CC005E6C2 /* Build configuration list for PBXNativeTarget "smart-teleprompterUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				19C72E36BB78CB8D5292399D /* Release */,
+				1CDD7780880F177B59356A09 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		DF06C8992FB1D9D8005991E1 /* Build configuration list for PBXProject "smart-teleprompter" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

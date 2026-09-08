@@ -12,6 +12,8 @@ final class Script {
     var body: String
     var createdAt: Date
     var updatedAt: Date
+    /// Nil preserves creation-date ordering until the user moves a script.
+    var sortPosition: Double? = nil
     /// Last-used font size in present mode for this script.
     var fontSize: Double
     /// Last token index reached by speech sync (-1 = start). Lets a session resume.
