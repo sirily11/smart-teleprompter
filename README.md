@@ -52,51 +52,18 @@ xcodebuild -scheme smart-teleprompter -destination 'platform=iOS Simulator,name=
 Requires microphone and speech-recognition permission (requested on first use of
 "Follow my voice").
 
-## Import from Notion (disabled)
+## Import from Notion
 
-Notion import is temporarily hidden from the Add Script menu until OAuth is ready.
-To restore it, set `notionImportEnabled` to `true` in `ScriptListView.swift`.
+Choose **+ → Import from Notion… → Connect to Notion**, sign in, select the pages
+to share, then choose a page to import as an editable script. The access token
+remains in memory for the import session. Nested text and table cells are included;
+media, child pages, and databases are omitted. Imports do not automatically sync.
 
-Once enabled, choose **+ → Import from Notion… → Connect to Notion**, sign in, select the pages
-to share, then choose a page to import as an editable script. No user-entered
-credentials or integration settings are required. The access token remains in
-memory for the import session.
-
-Imports include nested text and table cells in reading order. Links use their
-visible text. Media, child pages, and databases are omitted. Imports are snapshots;
-Notion changes do not automatically sync. Failed and empty imports create no script.
-
-### OAuth deployment configuration (pending)
-
-The native OAuth flow is prepared, but live sign-in requires the app's public
-Notion client ID, registered HTTPS redirect URI, and an OAuth service. Fill the
-three developer-owned constants in `Import/NotionOAuth.swift` before shipping.
-They are intentionally empty until the actual integration settings are supplied.
-The app never bundles a client secret or asks users to enter a token.
-
-The service is not implemented in this repository; its backend location still
-needs to be selected. It must implement this contract:
-
-- `POST <serviceURL>/start`: accept `client_id`, `redirect_uri`, `state`,
-  `code_challenge`, and `code_challenge_method: S256`. Validate the client and
-  redirect against server configuration. Store a short-lived transaction bound
-  to the state and challenge, then return `{ "authorization_url": "..." }` for
-  `https://api.notion.com/v1/oauth/authorize` with that client, redirect, state,
-  `owner=user`, and `response_type=code`.
-- Registered HTTPS callback: validate and consume the transaction state, exchange
-  Notion's code server-side using the client secret, and issue a short-lived,
-  one-use ticket bound to the challenge. Redirect to
-  `rxlab-smart-teleprompter://notion/callback?ticket=...&state=...`.
-  On denial, redirect with `error=access_denied` and the verified state instead.
-- `POST <serviceURL>/exchange`: accept `ticket` and `code_verifier`, verify its
-  SHA-256 challenge, atomically consume the ticket, and return
-  `{ "access_token": "..." }` with `Cache-Control: no-store`. Reject expired,
-  reused, and mismatched tickets. Rate-limit endpoints and never log secrets,
-  codes, tickets, or tokens. The verifier binding protects the app handoff;
-  it does not assume Notion itself supports PKCE.
-
-See Notion's [OAuth documentation](https://developers.notion.com/guides/get-started/authorization).
-Page search and block retrieval use API version `2025-09-03`.
+The app uses `https://teleprompter.rxlab.app/api/notion` for OAuth and the same
+website’s `/privacy` and `/tos` pages for legal links on devices and simulators.
+The server implements sign-in with Turso-backed state and encrypted, single-use,
+verifier-bound tickets. See [server setup](server/README.md) for required secrets
+and the Notion redirect configuration. These must be deployed before live sign-in works.
 
 ## Script ordering
 

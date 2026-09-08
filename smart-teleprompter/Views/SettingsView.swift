@@ -4,13 +4,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     private var legalBaseURL: URL? {
-        #if targetEnvironment(simulator)
-        return URL(string: "http://localhost:3100")
-        #else
-        guard let value = Bundle.main.object(forInfoDictionaryKey: "LegalBaseURL") as? String,
-              let url = URL(string: value), url.scheme == "https", url.host != nil else { return nil }
-        return url
-        #endif
+        URL(string: "https://teleprompter.rxlab.app")
     }
 
     var body: some View {

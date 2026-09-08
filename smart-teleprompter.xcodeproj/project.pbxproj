@@ -37,22 +37,16 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		DF06C8A02FB1D9D8005991E1 /* smart-teleprompter */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = "smart-teleprompter";
 			sourceTree = "<group>";
 		};
 		DF06C8B02FB1D9D9005991E1 /* smart-teleprompterTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = "smart-teleprompterTests";
 			sourceTree = "<group>";
 		};
 		DF06C8BA2FB1D9D9005991E1 /* smart-teleprompterUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = "smart-teleprompterUITests";
 			sourceTree = "<group>";
 		};
@@ -430,13 +424,14 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "smart-teleprompter/smart-teleprompter.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = P9KK452K8P;
+				DEVELOPMENT_TEAM = T7GYB573Y6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Configuration/AppInfo.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SmartPrompter;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to follow your speech and auto-scroll the teleprompter.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Recognizes your speech to keep the script in sync.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -478,13 +473,14 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "smart-teleprompter/smart-teleprompter.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = P9KK452K8P;
+				DEVELOPMENT_TEAM = T7GYB573Y6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Configuration/AppInfo.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SmartPrompter;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to follow your speech and auto-scroll the teleprompter.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Recognizes your speech to keep the script in sync.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;

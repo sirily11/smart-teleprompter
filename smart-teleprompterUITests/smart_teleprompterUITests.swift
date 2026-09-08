@@ -17,6 +17,16 @@ final class smart_teleprompterUITests: XCTestCase {
         XCTAssertTrue(app.cells.staticTexts["Newest"].waitForExistence(timeout: 10))
     }
 
+    func testNotionImportIsAvailableAndLegalLinksAreVisible() {
+        app.buttons["Add Script"].tap()
+        app.buttons["Import from Notion…"].tap()
+        XCTAssertTrue(app.buttons["Connect to Notion"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Privacy Policy"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Terms of Service"].exists)
+    }
+
     func testCreationOrderDoesNotChangeWhenEditing() {
         assertOrder(["Newest", "Middle", "Oldest"])
         app.cells.staticTexts["Oldest"].tap()

@@ -12,9 +12,9 @@ import UIKit
 /// The Notion client secret belongs only on the OAuth service.
 struct NotionOAuthConfiguration {
     static let production = NotionOAuthConfiguration(
-        clientID: "",
-        redirectURI: "",
-        serviceURL: ""
+        clientID: "3d5d872b-594c-815c-a78f-0037616491bc",
+        redirectURI: "https://teleprompter.rxlab.app/api/notion/callback",
+        serviceURL: "https://teleprompter.rxlab.app/api/notion"
     )
 
     let clientID: String

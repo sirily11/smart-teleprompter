@@ -29,8 +29,7 @@ struct ScriptListView: View {
     @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
     @State private var importingFile = false
     @State private var showingSettings = false
-    // Enable after the Notion OAuth service is configured.
-    private let notionImportEnabled = false
+    private let notionImportEnabled = true
     @State private var importingNotion = false
     @State private var importError: String?
     @State private var pendingDeletionIDs: Set<PersistentIdentifier> = []
