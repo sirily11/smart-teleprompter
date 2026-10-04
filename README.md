@@ -25,14 +25,34 @@ Built with SwiftUI + SwiftData; speech recognition uses Apple's on-device
   recognition locale is auto-detected from the script (e.g. zh-CN / zh-TW).
 - **Markdown import** — links collapse to their visible text, images are dropped, so
   pasted Markdown reads as clean prose.
+- **Sony camera remote** — pair a Sony camera over Bluetooth and start/stop video
+  recording from the teleprompter, with an on-screen REC timer.
 - **Script library** — create, edit, and manage multiple scripts (SwiftData).
+
+## Sony camera recording
+
+Open **Settings → Camera** (or the camera button while presenting). On the camera,
+go to Menu › Network › Bluetooth, turn on **Bluetooth Function** and **Bluetooth Rmt
+Ctrl**, choose **Pairing**, then tap the camera under *Nearby Cameras* and accept the
+pairing request. Once connected, the presenter's **Record** button starts and stops
+recording. The paired camera reconnects automatically whenever it's in range.
+
+To see the camera's live view, connect it over USB and turn on **USB Streaming**
+on the camera. The camera then works as a standard UVC webcam on iPad and Mac. The presenter
+uses two columns: the camera feed, Record/Stop, and the text controls on the left,
+and the script on the right. Tap the script to hide or show the left column. On
+narrow screens the camera and controls appear in a strip above the script.
+
+This uses Sony's Bluetooth LE remote protocol (service `8000FF00-…`, command
+characteristic `FF01`, status notifications on `FF02`) — see
+`smart-teleprompter/Camera/`.
 
 ## Project layout
 
 | Path | What |
 |------|------|
 | `smart-teleprompter/Models/Script.swift` | SwiftData model |
-| `smart-teleprompter/Views/` | `ScriptListView`, `ScriptEditorView`, `PresentView`, `TeleprompterTextView` |
+| `smart-teleprompter/Views/` | `RootTabView` (Scripts / Settings tabs), `ScriptListView`, `ScriptEditorView`, `PresentView`, `TeleprompterTextView` |
 | `smart-teleprompter/ViewModels/TeleprompterViewModel.swift` | present-mode state, locale detection, sync lifecycle |
 | `smart-teleprompter/Speech/` | `SpeechRecognizing` protocol + `AppleSpeechRecognizer` |
 | `smart-teleprompter/Sync/SpeechSyncEngine.swift` | transcript → script-position matcher |

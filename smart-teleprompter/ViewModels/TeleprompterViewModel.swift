@@ -20,6 +20,8 @@ final class TeleprompterViewModel {
     var fontSize: Double
     var mirrorHorizontal = false
     var mirrorVertical = false
+    var flipCameraHorizontal = false
+    var flipCameraVertical = false
 
     // Speech sync
     var isRunning = false

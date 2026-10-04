@@ -10,6 +10,8 @@ import SwiftData
 
 @main
 struct smart_teleprompterApp: App {
+    @State private var camera = SonyCameraController()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Script.self,
@@ -65,7 +67,9 @@ struct smart_teleprompterApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ScriptListView()
+            RootTabView()
+                .environment(camera)
+                .task { camera.activateIfPaired() }
         }
         .modelContainer(sharedModelContainer)
     }

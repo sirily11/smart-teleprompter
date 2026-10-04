@@ -7,9 +7,6 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 import os
-#if os(iOS)
-import UIKit
-#endif
 
 struct ScriptListView: View {
     @Environment(\.modelContext) private var modelContext
@@ -24,11 +21,8 @@ struct ScriptListView: View {
             }
         }
     }
-    @State private var selectedScript: Script?
-    @State private var phonePath: [Script] = []
-    @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
+    @State private var path: [Script] = []
     @State private var importingFile = false
-    @State private var showingSettings = false
     private let notionImportEnabled = true
     @State private var importingNotion = false
     @State private var importError: String?
@@ -44,42 +38,13 @@ struct ScriptListView: View {
          UTType(filenameExtension: "markdown") ?? .plainText]
     }
 
-    private var usesSplitNavigation: Bool {
-        #if os(macOS)
-        true
-        #elseif os(iOS)
-        UIDevice.current.userInterfaceIdiom == .pad
-        #else
-        true
-        #endif
-    }
-
     var body: some View {
-        Group {
-            if usesSplitNavigation {
-                NavigationSplitView(preferredCompactColumn: $preferredCompactColumn) {
-                    library
-                        .navigationSplitViewColumnWidth(min: 220, ideal: 280, max: 380)
-                } detail: {
-                    if let selectedScript {
-                        ScriptEditorView(script: selectedScript)
-                            .id(selectedScript.persistentModelID)
-                    } else {
-                        ContentUnavailableView("Select a Script", systemImage: "doc.text",
-                            description: Text("Choose a script from the sidebar, or use + to create or import one."))
-                    }
+        NavigationStack(path: $path) {
+            library
+                .navigationDestination(for: Script.self) { script in
+                    ScriptEditorView(script: script)
                 }
-                .navigationSplitViewStyle(.balanced)
-            } else {
-                NavigationStack(path: $phonePath) {
-                    library
-                        .navigationDestination(for: Script.self) { script in
-                            ScriptEditorView(script: script)
-                        }
-                }
-            }
         }
-        .sheet(isPresented: $showingSettings) { SettingsView() }
         .fileImporter(isPresented: $importingFile,
                       allowedContentTypes: importableTypes,
                       allowsMultipleSelection: false) { result in
@@ -114,11 +79,7 @@ struct ScriptListView: View {
         }
         .onChange(of: scripts.map(\.persistentModelID)) { _, ids in
             // A script may also be deleted from another window.
-            if let selectedScript, !ids.contains(selectedScript.persistentModelID) {
-                self.selectedScript = nil
-                preferredCompactColumn = .sidebar
-            }
-            phonePath.removeAll { !ids.contains($0.persistentModelID) }
+            path.removeAll { !ids.contains($0.persistentModelID) }
         }
     }
 
@@ -130,11 +91,6 @@ struct ScriptListView: View {
                 } description: {
                     Text("Tap + to write or import a script, then present it and let your speech scroll it.")
                 }
-            } else if usesSplitNavigation {
-                List(selection: $selectedScript) {
-                    scriptRows
-                }
-                .listStyle(.sidebar)
             } else {
                 List { scriptRows }
             }
@@ -147,11 +103,6 @@ struct ScriptListView: View {
                     .disabled(scripts.isEmpty)
             }
             #endif
-            ToolbarItem(placement: .automatic) {
-                Button { showingSettings = true } label: {
-                    Label("Settings", systemImage: "gearshape")
-                }
-            }
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button {
@@ -211,12 +162,7 @@ struct ScriptListView: View {
     }
 
     private func openScript(_ script: Script) {
-        if usesSplitNavigation {
-            selectedScript = script
-            preferredCompactColumn = .detail
-        } else {
-            phonePath.append(script)
-        }
+        path.append(script)
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
@@ -268,11 +214,7 @@ struct ScriptListView: View {
         pendingDeletionIDs = []
         withAnimation {
             for script in targets {
-                if selectedScript == script {
-                    selectedScript = nil
-                    preferredCompactColumn = .sidebar
-                }
-                phonePath.removeAll { $0 == script }
+                path.removeAll { $0 == script }
                 modelContext.delete(script)
             }
         }
@@ -281,5 +223,6 @@ struct ScriptListView: View {
 
 #Preview {
     ScriptListView()
+        .environment(SonyCameraController())
         .modelContainer(for: Script.self, inMemory: true)
 }
