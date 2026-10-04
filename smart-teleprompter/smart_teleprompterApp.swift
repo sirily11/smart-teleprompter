@@ -67,7 +67,7 @@ struct smart_teleprompterApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ScriptListView()
+            RootTabView()
                 .environment(camera)
                 .task { camera.activateIfPaired() }
         }

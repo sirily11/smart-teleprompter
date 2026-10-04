@@ -67,6 +67,7 @@ final class SonyCameraController: NSObject {
     /// once the user has paired a camera or opens the pairing screen.
     func activate() {
         guard central == nil else { return }
+        Log.camera.debug("Creating central manager (paired: \(self.pairedCameraID?.uuidString ?? "none", privacy: .public))")
         central = CBCentralManager(delegate: self, queue: nil)
     }
 
@@ -80,7 +81,10 @@ final class SonyCameraController: NSObject {
     func startScan() {
         scanRequested = true
         activate()
-        guard let central, central.state == .poweredOn, !central.isScanning else { return }
+        guard let central, central.state == .poweredOn, !central.isScanning else {
+            Log.camera.debug("Scan deferred: central state \(self.central?.state.rawValue ?? -1), scanning \(self.central?.isScanning ?? false)")
+            return
+        }
         discovered.removeAll()
         central.scanForPeripherals(withServices: nil,
                                    options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
@@ -97,7 +101,11 @@ final class SonyCameraController: NSObject {
     // MARK: - Connection
 
     func connect(to camera: DiscoveredCamera) {
-        guard let central, let peripheral = peripherals[camera.id] else { return }
+        guard let central, let peripheral = peripherals[camera.id] else {
+            Log.camera.error("Connect ignored: no peripheral for \(camera.id.uuidString, privacy: .public)")
+            return
+        }
+        Log.camera.info("Connecting to \(camera.name, privacy: .public) (\(camera.id.uuidString, privacy: .public), RSSI \(camera.rssi))")
         stopScan()
         if let activePeripheral, activePeripheral.identifier != peripheral.identifier {
             central.cancelPeripheralConnection(activePeripheral)
@@ -107,6 +115,7 @@ final class SonyCameraController: NSObject {
     }
 
     func forgetCamera() {
+        Log.camera.info("Forgetting camera \(self.pairedCameraID?.uuidString ?? "none", privacy: .public)")
         if let activePeripheral { central?.cancelPeripheralConnection(activePeripheral) }
         activePeripheral = nil
         commandCharacteristic = nil
@@ -123,14 +132,21 @@ final class SonyCameraController: NSObject {
         activePeripheral = peripheral
         peripheral.delegate = self
         state = .connecting
+        Log.camera.debug("connect() → \(peripheral.identifier.uuidString, privacy: .public), peripheral state \(peripheral.state.rawValue)")
         // No timeout: CoreBluetooth completes this whenever the camera comes into range.
         central?.connect(peripheral, options: nil)
     }
 
     func reconnectToPairedCamera() {
-        guard activePeripheral == nil, let central, let pairedCameraID,
-              let peripheral = central.retrievePeripherals(withIdentifiers: [pairedCameraID]).first
-        else { return }
+        guard activePeripheral == nil, let central, let pairedCameraID else {
+            Log.camera.debug("Reconnect skipped: active \(self.activePeripheral != nil), paired \(self.pairedCameraID != nil)")
+            return
+        }
+        guard let peripheral = central.retrievePeripherals(withIdentifiers: [pairedCameraID]).first else {
+            Log.camera.error("Reconnect failed: system doesn't know paired camera \(pairedCameraID.uuidString, privacy: .public)")
+            return
+        }
+        Log.camera.info("Reconnecting to paired camera \(self.pairedCameraName ?? "unknown", privacy: .public)")
         peripherals[pairedCameraID] = peripheral
         connect(peripheral)
     }
@@ -138,8 +154,13 @@ final class SonyCameraController: NSObject {
     // MARK: - Recording
 
     func toggleRecording() {
-        guard let peripheral = activePeripheral, let characteristic = commandCharacteristic else { return }
+        guard let peripheral = activePeripheral, let characteristic = commandCharacteristic else {
+            Log.camera.error("Toggle ignored: state \(String(describing: self.state), privacy: .public), peripheral \(self.activePeripheral != nil), command characteristic \(self.commandCharacteristic != nil)")
+            return
+        }
+        Log.camera.info("Toggle on \(peripheral.identifier.uuidString, privacy: .public), peripheral state \(peripheral.state.rawValue), FF01 properties \(Self.describe(characteristic.properties), privacy: .public)")
         for command in SonyRemoteProtocol.toggleRecordSequence {
+            Log.camera.debug("Write \(String(describing: command), privacy: .public) [\(command.data.hexString, privacy: .public)]")
             peripheral.writeValue(command.data, for: characteristic, type: .withResponse)
         }
         // Optimistic; FF02 notifications correct this if the camera disagrees.
@@ -155,11 +176,16 @@ final class SonyCameraController: NSObject {
     }
 
     private func handleDisconnect(_ peripheral: CBPeripheral, error: Error?) {
-        guard peripheral.identifier == activePeripheral?.identifier else { return }
+        guard peripheral.identifier == activePeripheral?.identifier else {
+            Log.camera.debug("Ignoring disconnect from inactive peripheral \(peripheral.identifier.uuidString, privacy: .public)")
+            return
+        }
         commandCharacteristic = nil
         isRecording = false
         recordingStartedAt = nil
-        if peripheral.identifier == pairedCameraID {
+        if Self.isStaleBond(error) {
+            failStaleBond(peripheral)
+        } else if peripheral.identifier == pairedCameraID {
             // Keep a pending connection open so the camera reattaches when it returns.
             connect(peripheral)
         } else {
@@ -189,6 +215,33 @@ final class SonyCameraController: NSObject {
         state = .failed(message)
     }
 
+    /// The camera dropped its bond but this device still holds the old keys, so every
+    /// reconnect fails until the user forgets the camera in system Bluetooth settings.
+    private func failStaleBond(_ peripheral: CBPeripheral) {
+        let name = pairedCameraName ?? connectingName ?? peripheral.name ?? String(localized: "Sony Camera")
+        forgetCamera()
+        fail(peripheral, String(localized: "\(name) no longer recognizes this device. Open Settings › Bluetooth, choose Forget This Device for \(name), then on the camera open Bluetooth › Pairing and pair again."))
+    }
+
+    private static func describe(_ properties: CBCharacteristicProperties) -> String {
+        let names: [(CBCharacteristicProperties, String)] = [
+            (.read, "read"), (.write, "write"), (.writeWithoutResponse, "writeWithoutResponse"),
+            (.notify, "notify"), (.indicate, "indicate"),
+            (.notifyEncryptionRequired, "notifyEncrypted"), (.indicateEncryptionRequired, "indicateEncrypted"),
+        ]
+        return names.filter { properties.contains($0.0) }.map(\.1).joined(separator: ",")
+    }
+
+    nonisolated private static func describe(_ error: Error?) -> String {
+        guard let error else { return "none" }
+        let nsError = error as NSError
+        return "\(nsError.domain) \(nsError.code): \(nsError.localizedDescription)"
+    }
+
+    private static func isStaleBond(_ error: Error?) -> Bool {
+        (error as? CBError)?.code == .peerRemovedPairingInformation
+    }
+
     private static let pairingHint = String(localized: "Couldn’t pair. On the camera, turn on Bluetooth Rmt Ctrl and open Bluetooth › Pairing, then try again.")
 }
 
@@ -197,6 +250,7 @@ final class SonyCameraController: NSObject {
 extension SonyCameraController: CBCentralManagerDelegate {
     nonisolated func centralManagerDidUpdateState(_ central: CBCentralManager) {
         MainActor.assumeIsolated {
+            Log.camera.info("Central state → \(central.state.rawValue) (0 unknown, 1 resetting, 2 unsupported, 3 unauthorized, 4 off, 5 on)")
             switch central.state {
             case .poweredOn:
                 if state == .bluetoothOff || state == .unauthorized || state == .unsupported { state = .idle }
@@ -233,6 +287,7 @@ extension SonyCameraController: CBCentralManagerDelegate {
             if let index = discovered.firstIndex(where: { $0.id == camera.id }) {
                 discovered[index] = camera
             } else {
+                Log.camera.info("Discovered \(camera.name, privacy: .public) (\(camera.id.uuidString, privacy: .public)), RSSI \(rssi), mfr data \(manufacturerData?.hexString ?? "-", privacy: .public)")
                 discovered.append(camera)
             }
         }
@@ -240,21 +295,26 @@ extension SonyCameraController: CBCentralManagerDelegate {
 
     nonisolated func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         MainActor.assumeIsolated {
-            Log.camera.info("Connected; discovering remote service")
+            Log.camera.info("Connected to \(peripheral.name ?? "unknown", privacy: .public); discovering remote service")
             peripheral.discoverServices([SonyRemoteProtocol.remoteService])
         }
     }
 
     nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         MainActor.assumeIsolated {
-            fail(peripheral, error?.localizedDescription ?? Self.pairingHint)
+            Log.camera.error("Failed to connect: \(Self.describe(error), privacy: .public)")
+            if Self.isStaleBond(error) {
+                failStaleBond(peripheral)
+            } else {
+                fail(peripheral, error?.localizedDescription ?? Self.pairingHint)
+            }
         }
     }
 
     nonisolated func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
                                     timestamp: CFAbsoluteTime, isReconnecting: Bool, error: Error?) {
         MainActor.assumeIsolated {
-            Log.camera.info("Disconnected: \(error?.localizedDescription ?? "no error", privacy: .public)")
+            Log.camera.info("Disconnected (system reconnecting: \(isReconnecting)): \(Self.describe(error), privacy: .public)")
             handleDisconnect(peripheral, error: error)
         }
     }
@@ -265,6 +325,8 @@ extension SonyCameraController: CBCentralManagerDelegate {
 extension SonyCameraController: CBPeripheralDelegate {
     nonisolated func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         MainActor.assumeIsolated {
+            let services = (peripheral.services ?? []).map(\.uuid.uuidString).joined(separator: ", ")
+            Log.camera.info("Services: [\(services, privacy: .public)], error: \(Self.describe(error), privacy: .public)")
             guard error == nil,
                   let service = peripheral.services?.first(where: { $0.uuid == SonyRemoteProtocol.remoteService })
             else {
@@ -279,6 +341,10 @@ extension SonyCameraController: CBPeripheralDelegate {
     nonisolated func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         MainActor.assumeIsolated {
             let characteristics = service.characteristics ?? []
+            for characteristic in characteristics {
+                Log.camera.info("Characteristic \(characteristic.uuid.uuidString, privacy: .public): \(Self.describe(characteristic.properties), privacy: .public)")
+            }
+            if let error { Log.camera.error("Characteristic discovery failed: \(Self.describe(error), privacy: .public)") }
             guard error == nil,
                   let command = characteristics.first(where: { $0.uuid == SonyRemoteProtocol.commandCharacteristic })
             else {
@@ -300,17 +366,33 @@ extension SonyCameraController: CBPeripheralDelegate {
                                 error: Error?) {
         MainActor.assumeIsolated {
             if let error {
-                Log.camera.error("Subscribe failed: \(error.localizedDescription, privacy: .public)")
-                fail(peripheral, Self.pairingHint)
+                Log.camera.error("Subscribe to \(characteristic.uuid.uuidString, privacy: .public) failed: \(Self.describe(error), privacy: .public)")
+                if Self.isStaleBond(error) {
+                    failStaleBond(peripheral)
+                } else {
+                    fail(peripheral, Self.pairingHint)
+                }
             } else {
+                Log.camera.info("Subscribed to \(characteristic.uuid.uuidString, privacy: .public) (notifying: \(characteristic.isNotifying))")
                 markReady(peripheral)
             }
         }
     }
 
     nonisolated func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard let data = characteristic.value, let event = SonyRemoteProtocol.event(from: data) else { return }
+        let uuid = characteristic.uuid.uuidString
+        let data = characteristic.value
+        let errorDescription = error.map { Self.describe($0) }
         MainActor.assumeIsolated {
+            if let errorDescription {
+                Log.camera.error("Notification error on \(uuid, privacy: .public): \(errorDescription, privacy: .public)")
+            }
+            let raw = data?.hexString ?? "-"
+            guard let data, let event = SonyRemoteProtocol.event(from: data) else {
+                Log.camera.debug("Notification \(uuid, privacy: .public) [\(raw, privacy: .public)]: unrecognized")
+                return
+            }
+            Log.camera.info("Notification \(uuid, privacy: .public) [\(raw, privacy: .public)] → \(String(describing: event), privacy: .public)")
             switch event {
             case .recordingStarted, .recordingStopped: recordingBeforeToggle = nil
             default: break
@@ -324,13 +406,21 @@ extension SonyCameraController: CBPeripheralDelegate {
     }
 
     nonisolated func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard let error else { return }
-        let message = error.localizedDescription
+        let uuid = characteristic.uuid.uuidString
+        let message = error.map { Self.describe($0) }
         MainActor.assumeIsolated {
-            Log.camera.error("Command failed: \(message, privacy: .public)")
+            guard let message else {
+                Log.camera.debug("Write to \(uuid, privacy: .public) acknowledged")
+                return
+            }
+            Log.camera.error("Command to \(uuid, privacy: .public) failed: \(message, privacy: .public)")
             // The write never reached the camera, so undo the optimistic toggle.
             if let recordingBeforeToggle { setRecording(recordingBeforeToggle) }
             recordingBeforeToggle = nil
         }
     }
+}
+
+private extension Data {
+    nonisolated var hexString: String { map { String(format: "%02X", $0) }.joined(separator: " ") }
 }

@@ -434,7 +434,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = SmartPrompter;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Connects to your Sony camera so you can start and stop recording from the teleprompter.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Shows the live feed from your USB-connected Sony camera next to the script.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to follow your speech and auto-scroll the teleprompter.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to follow your speech and auto-scroll the teleprompter, and to record sound with videos recorded on this device.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Saves videos recorded from your USB camera to your photo library.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Recognizes your speech to keep the script in sync.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -485,7 +486,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = SmartPrompter;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Connects to your Sony camera so you can start and stop recording from the teleprompter.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Shows the live feed from your USB-connected Sony camera next to the script.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to follow your speech and auto-scroll the teleprompter.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to follow your speech and auto-scroll the teleprompter, and to record sound with videos recorded on this device.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Saves videos recorded from your USB camera to your photo library.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Recognizes your speech to keep the script in sync.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

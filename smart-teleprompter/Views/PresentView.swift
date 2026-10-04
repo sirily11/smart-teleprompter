@@ -15,8 +15,12 @@ struct PresentView: View {
     @State private var pinchBaseFontSize: Double?
     @State private var showingCameraPairing = false
     @State private var confirmingCloseWhileRecording = false
-    @State private var cameraToast: String?
+    @State private var cameraToast: CameraToast?
+    @State private var showingPhotosAccessAlert = false
     @State private var toastTask: Task<Void, Never>?
+    @AppStorage("presentSidePanelWidth") private var sidePanelWidth: Double = 340
+    @State private var resizeStartWidth: Double?
+    @AppStorage("recordingDestination") private var recordingDestination: RecordingDestination = .camera
 
     init(script: Script) {
         self.script = script
@@ -40,8 +44,10 @@ struct PresentView: View {
                         HStack(spacing: 0) {
                             if showControls {
                                 sideColumn
-                                    .frame(width: min(380, max(300, geo.size.width * 0.3)))
+                                    .frame(width: clampedSidePanelWidth(sidePanelWidth, in: geo.size.width))
                                     .transition(.move(edge: .leading).combined(with: .opacity))
+                                sidePanelResizeHandle(containerWidth: geo.size.width)
+                                    .transition(.opacity)
                             }
                             teleprompter
                         }
@@ -51,7 +57,7 @@ struct PresentView: View {
                         statusBanner(reason)
                     }
 
-                    if camera.isRecording && !showControls {
+                    if isRecording && !showControls {
                         recordingIndicator
                     }
 
@@ -71,7 +77,7 @@ struct PresentView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done", systemImage: "xmark") {
-                        if camera.isRecording { confirmingCloseWhileRecording = true } else { dismiss() }
+                        if isRecording { confirmingCloseWhileRecording = true } else { dismiss() }
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
@@ -102,20 +108,50 @@ struct PresentView: View {
         .sheet(isPresented: $showingCameraPairing) {
             NavigationStack { CameraPairingView() }
         }
-        .confirmationDialog("Camera is still recording", isPresented: $confirmingCloseWhileRecording,
-                            titleVisibility: .visible) {
+        .confirmationDialog(recordsOnDevice ? "Still recording" : "Camera is still recording",
+                            isPresented: $confirmingCloseWhileRecording, titleVisibility: .visible) {
             Button("Stop Recording and Close", role: .destructive) {
-                camera.toggleRecording()
+                if recordsOnDevice { feed.stopRecording() } else { camera.toggleRecording() }
                 dismiss()
             }
-            Button("Keep Recording and Close") { dismiss() }
+            // A recording on this device needs the presenter's camera feed.
+            if !recordsOnDevice {
+                Button("Keep Recording and Close") { dismiss() }
+            }
+        } message: {
+            if recordsOnDevice {
+                Text("Closing stops the recording and saves it to Photos.")
+            }
         }
-        .sensoryFeedback(trigger: camera.isRecording) { _, recording in recording ? .start : .stop }
+        .alert("Allow Access to Photos", isPresented: $showingPhotosAccessAlert) {
+            #if os(iOS)
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+            }
+            #endif
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Recordings made on this device are saved to Photos. Allow SmartPrompter to add photos in Settings.")
+        }
+        .sensoryFeedback(trigger: isRecording) { _, recording in recording ? .start : .stop }
         .sensoryFeedback(.selection, trigger: showControls)
+        .sensoryFeedback(.impact(weight: .light), trigger: resizeStartWidth == nil)
         .sensoryFeedback(.selection, trigger: [model.mirrorHorizontal, model.mirrorVertical,
                                                model.flipCameraHorizontal, model.flipCameraVertical])
         .onChange(of: camera.isReady) { _, ready in
-            showCameraToast(ready ? String(localized: "Camera connected") : String(localized: "Camera disconnected"))
+            showCameraToast(CameraToast(message: ready ? String(localized: "Camera connected")
+                                                       : String(localized: "Camera disconnected"),
+                                        systemImage: "camera"))
+        }
+        .onChange(of: feed.lastRecording) { _, result in
+            if let result { handleRecordingResult(result.outcome) }
+        }
+        .sensoryFeedback(trigger: feed.lastRecording) { _, result in
+            switch result?.outcome {
+            case .savedToPhotos, .savedToFiles: .success
+            case .failed, .photosAccessDenied: .error
+            case nil: nil
+            }
         }
         .task { await feed.start() }
         .onAppear { model.onEnterPresent() }
@@ -138,11 +174,13 @@ struct PresentView: View {
 
     private var sideColumn: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: 24) {
                 cameraWindow
                 cameraFlipButtons
+                recordingDestinationPicker
                 recordControl
                 teleprompterButtons
+                SpiritLevelView()
             }
             .padding(16)
         }
@@ -150,17 +188,56 @@ struct PresentView: View {
         .background(Color(white: 0.07))
     }
 
+    private static let sidePanelMinWidth: Double = 240
+
+    private func clampedSidePanelWidth(_ width: Double, in containerWidth: CGFloat) -> Double {
+        let maxWidth = max(Self.sidePanelMinWidth, containerWidth * 0.6)
+        return min(max(width, Self.sidePanelMinWidth), maxWidth)
+    }
+
+    /// Drag to resize the side column; the width is remembered across sessions.
+    private func sidePanelResizeHandle(containerWidth: CGFloat) -> some View {
+        Capsule()
+            .fill(Color.white.opacity(resizeStartWidth == nil ? 0.25 : 0.6))
+            .frame(width: 4, height: 44)
+            .frame(width: 16)
+            .frame(maxHeight: .infinity)
+            .background(Color(white: 0.07))
+            .contentShape(Rectangle())
+            #if os(macOS)
+            .pointerStyle(.frameResize(position: .trailing))
+            #endif
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        let start = resizeStartWidth ?? clampedSidePanelWidth(sidePanelWidth, in: containerWidth)
+                        if resizeStartWidth == nil { resizeStartWidth = start }
+                        sidePanelWidth = clampedSidePanelWidth(start + value.translation.width, in: containerWidth)
+                    }
+                    .onEnded { _ in resizeStartWidth = nil }
+            )
+            .accessibilityElement()
+            .accessibilityLabel("Resize side panel")
+            .accessibilityValue("\(Int(clampedSidePanelWidth(sidePanelWidth, in: containerWidth))) points")
+            .accessibilityAdjustableAction { direction in
+                let step: Double = direction == .increment ? 40 : -40
+                sidePanelWidth = clampedSidePanelWidth(sidePanelWidth + step, in: containerWidth)
+            }
+    }
+
     /// Narrow screens (iPhone portrait) put the column's contents in a strip above the script.
     private func compactPanel(width: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            VStack(spacing: 10) {
+            VStack(spacing: 14) {
                 cameraWindow
                 cameraFlipButtons
             }
             .frame(width: width * 0.5)
-            VStack(spacing: 10) {
+            VStack(spacing: 14) {
+                recordingDestinationPicker
                 recordControl
                 teleprompterButtons
+                SpiritLevelView()
             }
         }
         .padding(12)
@@ -172,9 +249,11 @@ struct PresentView: View {
         ZStack {
             Color.black
             if feed.isRunning {
+                // Mirroring the script top–bottom means the screen is seen upside down
+                // through the rig, so the camera picture turns with it.
                 CameraPreviewView(session: feed.session,
                                   flipHorizontal: model.flipCameraHorizontal,
-                                  flipVertical: model.flipCameraVertical)
+                                  flipVertical: model.flipCameraVertical != model.mirrorVertical)
             } else {
                 feedPlaceholder
             }
@@ -183,15 +262,15 @@ struct PresentView: View {
         .clipShape(.rect(cornerRadius: 16))
         .overlay {
             RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(camera.isRecording ? Color.red : Color.white.opacity(0.15),
-                              lineWidth: camera.isRecording ? 3 : 1)
+                .strokeBorder(isRecording ? Color.red : Color.white.opacity(0.15),
+                              lineWidth: isRecording ? 3 : 1)
         }
         .overlay(alignment: .topLeading) {
-            if camera.isRecording {
+            if isRecording {
                 recordingBadge.padding(8)
             }
         }
-        .animation(.default, value: camera.isRecording)
+        .animation(.default, value: isRecording)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(feedAccessibilityLabel)
     }
@@ -202,6 +281,9 @@ struct PresentView: View {
             switch feed.state {
             case .idle, .authorizing, .running:
                 ProgressView()
+            case let .starting(name):
+                ProgressView()
+                Text("Starting \(name)…").font(.caption).foregroundStyle(.secondary)
             case .unauthorized:
                 placeholderText(Text("Allow camera access in Settings to see your camera here."),
                                 systemImage: "video.slash")
@@ -230,20 +312,105 @@ struct PresentView: View {
         }
     }
 
-    /// Start and stop recording from the same button; offers pairing until the remote is connected.
+    // MARK: - Recording
+
+    /// Sony cameras can't record to their card while USB Streaming is on, so the
+    /// USB feed can be recorded on this device instead.
+    private var recordsOnDevice: Bool {
+        recordingDestination == .device && (feed.isRunning || feed.isRecording)
+    }
+
+    private var isRecording: Bool {
+        recordsOnDevice ? feed.isRecording : camera.isRecording
+    }
+
+    private var recordingStartedAt: Date? {
+        recordsOnDevice ? feed.recordingStartedAt : camera.recordingStartedAt
+    }
+
+    private var deviceName: String {
+        #if os(iOS)
+        UIDevice.current.localizedModel
+        #else
+        String(localized: "Mac")
+        #endif
+    }
+
+    /// Only offered while the USB feed is live, since that's what a device recording captures.
+    @ViewBuilder
+    private var recordingDestinationPicker: some View {
+        #if !os(visionOS)
+        if feed.isRunning || feed.isRecording {
+            VStack(alignment: .leading, spacing: 6) {
+                Picker("Record on", selection: $recordingDestination) {
+                    Label("Camera", systemImage: "camera").tag(RecordingDestination.camera)
+                    Label(deviceName, systemImage: "ipad.landscape").tag(RecordingDestination.device)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .disabled(isRecording || feed.isSavingRecording)
+                .sensoryFeedback(.selection, trigger: recordingDestination)
+
+                Text(recordingDestination == .camera
+                     ? "Sony cameras usually can't record to their card while USB Streaming is on."
+                     : "Records the USB feed and saves it to Photos.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        #endif
+    }
+
     @ViewBuilder
     private var recordControl: some View {
+        if recordsOnDevice {
+            deviceRecordControl
+        } else {
+            cameraRecordControl
+        }
+    }
+
+    private var deviceRecordControl: some View {
+        Button {
+            if feed.isRecording {
+                feed.stopRecording()
+            } else {
+                Task { await feed.startRecording() }
+            }
+        } label: {
+            Group {
+                if feed.isSavingRecording {
+                    Label("Saving…", systemImage: "square.and.arrow.down")
+                } else {
+                    Label(feed.isRecording ? "Stop Recording" : "Record on \(deviceName)",
+                          systemImage: feed.isRecording ? "stop.fill" : "record.circle")
+                }
+            }
+            .font(.headline)
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.glassProminent)
+        .controlSize(.large)
+        .tint(.red)
+        .disabled(!feed.isRecording && !feed.canRecord)
+        .accessibilityLabel(feed.isRecording ? "Stop recording on \(deviceName)" : "Start recording on \(deviceName)")
+    }
+
+    /// Start and stop recording from the same button; offers pairing until the remote is connected.
+    @ViewBuilder
+    private var cameraRecordControl: some View {
         if camera.isReady {
             Button {
                 camera.toggleRecording()
             } label: {
                 Label(camera.isRecording ? "Stop Recording" : "Record",
                       systemImage: camera.isRecording ? "stop.fill" : "record.circle")
-                    .font(.headline)
+                    .font(.title3.weight(.semibold))
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.glassProminent)
-            .controlSize(.large)
+            .controlSize(.extraLarge)
             .tint(.red)
             .accessibilityLabel(camera.isRecording ? "Stop camera recording" : "Start camera recording")
         } else {
@@ -252,18 +419,25 @@ struct PresentView: View {
             } label: {
                 Label(camera.state == .connecting ? "Connecting to Camera…" : "Connect Camera to Record",
                       systemImage: "camera")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.headline)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.glass)
-            .controlSize(.large)
+            .controlSize(.extraLarge)
         }
     }
 
+    private static let controlIconSize: CGFloat = 52
+    private static let controlSpacing: CGFloat = 16
+    /// Room for the icon plus the glass button's own padding, so cells never overlap.
+    private static let controlCellWidth: CGFloat = controlIconSize + 24
+    /// Glass shapes closer than this blend together; keep it below the button gap.
+    private static let glassMergeDistance: CGFloat = 4
+
     /// Flip the camera picture independently of the script, e.g. to undo a rig's mirroring.
     private var cameraFlipButtons: some View {
-        GlassEffectContainer(spacing: 8) {
-            HStack(spacing: 8) {
+        GlassEffectContainer(spacing: Self.glassMergeDistance) {
+            HStack(spacing: Self.controlSpacing) {
                 glassToggleButton("arrow.left.and.right.righttriangle.left.righttriangle.right",
                                   label: "Flip camera left–right",
                                   isOn: model.flipCameraHorizontal) {
@@ -280,8 +454,9 @@ struct PresentView: View {
     }
 
     private var teleprompterButtons: some View {
-        GlassEffectContainer(spacing: 8) {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 8)], spacing: 8) {
+        GlassEffectContainer(spacing: Self.glassMergeDistance) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.controlCellWidth), spacing: Self.controlSpacing)],
+                      spacing: Self.controlSpacing) {
                 glassButton("textformat.size.smaller", label: "Smaller text") { model.decreaseFont() }
                 glassButton("textformat.size.larger", label: "Larger text") { model.increaseFont() }
                 glassButton("arrow.up.to.line", label: "Back to top") { model.resetToTop() }
@@ -302,8 +477,8 @@ struct PresentView: View {
     private func glassButton(_ systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.title2)
-                .frame(width: 44, height: 40)
+                .font(.title)
+                .frame(width: Self.controlIconSize, height: Self.controlIconSize)
         }
         .buttonStyle(.glass)
         .buttonBorderShape(.circle)
@@ -314,8 +489,8 @@ struct PresentView: View {
     private func glassToggleButton(_ systemName: String, label: String, isOn: Bool, action: @escaping () -> Void) -> some View {
         let button = Button(action: action) {
             Image(systemName: systemName)
-                .font(.title2)
-                .frame(width: 44, height: 40)
+                .font(.title)
+                .frame(width: Self.controlIconSize, height: Self.controlIconSize)
         }
         .buttonBorderShape(.circle)
         .accessibilityLabel(label)
@@ -343,7 +518,7 @@ struct PresentView: View {
             .glassEffect(.regular, in: .capsule)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Camera recording")
+        .accessibilityLabel(recordsOnDevice ? "Recording on \(deviceName)" : "Camera recording")
     }
 
     /// Shown over the script while the column is hidden, so recording is never invisible.
@@ -361,13 +536,13 @@ struct PresentView: View {
     }
 
     private func elapsedText(at date: Date) -> String {
-        let seconds = max(0, Int(date.timeIntervalSince(camera.recordingStartedAt ?? date)))
+        let seconds = max(0, Int(date.timeIntervalSince(recordingStartedAt ?? date)))
         return String(format: "REC %02d:%02d", seconds / 60, seconds % 60)
     }
 
-    private func cameraToastView(_ message: String) -> some View {
+    private func cameraToastView(_ toast: CameraToast) -> some View {
         VStack {
-            Label(message, systemImage: "camera")
+            Label(toast.message, systemImage: toast.systemImage)
                 .font(.footnote.weight(.semibold))
                 .padding(14)
                 .glassEffect(.regular, in: .rect(cornerRadius: 14))
@@ -377,9 +552,25 @@ struct PresentView: View {
         .allowsHitTesting(false)
     }
 
-    private func showCameraToast(_ message: String) {
+    private func handleRecordingResult(_ outcome: UVCCameraFeed.RecordingOutcome) {
+        switch outcome {
+        case .savedToPhotos:
+            showCameraToast(CameraToast(message: String(localized: "Recording saved to Photos"),
+                                        systemImage: "checkmark.circle"))
+        case .savedToFiles:
+            showCameraToast(CameraToast(message: String(localized: "Couldn't add to Photos. Recording kept in the app's Recordings folder."),
+                                        systemImage: "folder"))
+        case .photosAccessDenied:
+            showingPhotosAccessAlert = true
+        case let .failed(message):
+            showCameraToast(CameraToast(message: String(localized: "Recording failed: \(message)"),
+                                        systemImage: "exclamationmark.triangle"))
+        }
+    }
+
+    private func showCameraToast(_ toast: CameraToast) {
         toastTask?.cancel()
-        withAnimation { cameraToast = message }
+        withAnimation { cameraToast = toast }
         toastTask = Task {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
@@ -427,4 +618,16 @@ struct PresentView: View {
     private func toggleControls() {
         withAnimation { showControls.toggle() }
     }
+}
+
+private struct CameraToast: Equatable {
+    let message: String
+    let systemImage: String
+}
+
+/// Where the record button records: on the Sony camera's card (via the Bluetooth
+/// remote) or on this device from the USB feed.
+enum RecordingDestination: String {
+    case camera
+    case device
 }

@@ -52,7 +52,7 @@ characteristic `FF01`, status notifications on `FF02`) — see
 | Path | What |
 |------|------|
 | `smart-teleprompter/Models/Script.swift` | SwiftData model |
-| `smart-teleprompter/Views/` | `ScriptListView`, `ScriptEditorView`, `PresentView`, `TeleprompterTextView` |
+| `smart-teleprompter/Views/` | `RootTabView` (Scripts / Settings tabs), `ScriptListView`, `ScriptEditorView`, `PresentView`, `TeleprompterTextView` |
 | `smart-teleprompter/ViewModels/TeleprompterViewModel.swift` | present-mode state, locale detection, sync lifecycle |
 | `smart-teleprompter/Speech/` | `SpeechRecognizing` protocol + `AppleSpeechRecognizer` |
 | `smart-teleprompter/Sync/SpeechSyncEngine.swift` | transcript → script-position matcher |

@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(SonyCameraController.self) private var camera
     @State private var showingCameraPairing = false
 
@@ -55,11 +54,6 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .sheet(isPresented: $showingCameraPairing) {
                 NavigationStack { CameraPairingView() }
-            }
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
             }
         }
     }
