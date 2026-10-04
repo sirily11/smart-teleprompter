@@ -15,4 +15,5 @@ enum Log {
     static let speech = Logger(subsystem: subsystem, category: "speech")   // recognizer / audio
     static let sync   = Logger(subsystem: subsystem, category: "sync")     // word-matching engine
     static let ui     = Logger(subsystem: subsystem, category: "ui")       // present-mode / view model
+    static let camera = Logger(subsystem: subsystem, category: "camera")   // Bluetooth camera remote
 }

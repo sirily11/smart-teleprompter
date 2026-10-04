@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(SonyCameraController.self) private var camera
+    @State private var showingCameraPairing = false
 
     private var legalBaseURL: URL? {
         URL(string: "https://teleprompter.rxlab.app")
@@ -15,6 +17,19 @@ struct SettingsView: View {
                     LabeledContent("Developer", value: "RxLab")
                     LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")
                 } header: { Text("About") }
+                Section {
+                    Button {
+                        showingCameraPairing = true
+                    } label: {
+                        LabeledContent {
+                            Text(camera.isReady ? "Connected" : camera.pairedCameraID == nil ? "Not paired" : "Not connected")
+                        } label: {
+                            Label(camera.pairedCameraName ?? String(localized: "Sony Camera"), systemImage: "camera")
+                        }
+                    }
+                } header: { Text("Camera") } footer: {
+                    Text("Pair a Sony camera over Bluetooth to start and stop recording from the teleprompter.")
+                }
                 Section {
                     if let base = legalBaseURL {
                         Link(destination: base.appendingPathComponent("privacy")) {
@@ -38,6 +53,9 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .sheet(isPresented: $showingCameraPairing) {
+                NavigationStack { CameraPairingView() }
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
